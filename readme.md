@@ -9,4 +9,4 @@
 
 <i>Буду рад любой поддержке)</i>
 
-![video](https://github.com/ndkwa/blum-autocliker/blob/main/src/video.mp4)
+![video](https://github.com/ndkwa/blum-autocliker/blob/main/src/gif.gif)
