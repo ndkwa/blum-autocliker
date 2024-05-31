@@ -1,5 +1,4 @@
 import time
-
 import cv2
 import keyboard
 import mss
@@ -7,6 +6,7 @@ import numpy as np
 import pygetwindow as gw
 import win32api
 import win32con
+import math
 
 
 class Logger:
@@ -21,11 +21,13 @@ class Logger:
 
 
 class AutoClicker:
-    def __init__(self, window_title, target_colors_hex, logger):
+    def __init__(self, window_title, target_colors_hex, nearby_colors_hex, logger):
         self.window_title = window_title
         self.target_colors_hex = target_colors_hex
+        self.nearby_colors_hex = nearby_colors_hex
         self.logger = logger
         self.running = False
+        self.clicked_points = []
 
     @staticmethod
     def hex_to_hsv(hex_color):
@@ -47,6 +49,19 @@ class AutoClicker:
         r_text = "вкл" if self.running else "выкл"
         self.logger.log(f'Статус изменен: {r_text}')
 
+    def is_near_color(self, hsv_img, center, target_hsvs, radius=8):
+        x, y = center
+        height, width = hsv_img.shape[:2]
+        for i in range(max(0, x - radius), min(width, x + radius + 1)):
+            for j in range(max(0, y - radius), min(height, y + radius + 1)):
+                distance = math.sqrt((x - i) ** 2 + (y - j) ** 2)
+                if distance <= radius:
+                    pixel_hsv = hsv_img[j, i]
+                    for target_hsv in target_hsvs:
+                        if np.allclose(pixel_hsv, target_hsv, atol=[1, 50, 50]):
+                            return True
+        return False
+
     def click_color_areas(self):
         windows = gw.getWindowsWithTitle(self.window_title)
         if not windows:
@@ -57,6 +72,7 @@ class AutoClicker:
         window = windows[0]
         window.activate()
         target_hsvs = [self.hex_to_hsv(color) for color in self.target_colors_hex]
+        nearby_hsvs = [self.hex_to_hsv(color) for color in self.nearby_colors_hex]
 
         with mss.mss() as sct:
             grave_key_code = 41
@@ -90,19 +106,27 @@ class AutoClicker:
                             cX = int(M["m10"] / M["m00"]) + monitor["left"]
                             cY = int(M["m01"] / M["m00"]) + monitor["top"]
 
-                            click_offset_y = 0
-                            self.click_at(cX, cY + click_offset_y)
-                            self.logger.log(f'Нажал: {cX} {cY + click_offset_y}')
+                            if not self.is_near_color(hsv, (cX - monitor["left"], cY - monitor["top"]), nearby_hsvs):
+                                continue
+
+                            if any(math.sqrt((cX - px) ** 2 + (cY - py) ** 2) < 20 for px, py in self.clicked_points):
+                                continue
+
+                            self.click_at(cX, cY)
+                            self.logger.log(f'Нажал: {cX} {cY}')
+                            self.clicked_points.append((cX, cY))
 
                     time.sleep(0.4)
+                    self.clicked_points.clear()
 
 
 if __name__ == "__main__":
     logger = Logger("[https://t.me/scriptblum]")
     logger.log("Вас приветствует бесплатный скрипт - автокликер для игры Blum")
     logger.log('После запуска мини игры нажимайте клавишу "ё" (`) на клавиатуре')
-    target_colors_hex = ["#c8e000"]
-    auto_clicker = AutoClicker("TelegramDesktop", target_colors_hex, logger)
+    target_colors_hex = ["#c9e100", "#bae70e"]
+    nearby_colors_hex = ["#abff61", "#87ff27"]
+    auto_clicker = AutoClicker("TelegramDesktop", target_colors_hex, nearby_colors_hex, logger)
     try:
         auto_clicker.click_color_areas()
     except Exception as e:
