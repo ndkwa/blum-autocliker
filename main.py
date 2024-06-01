@@ -1,4 +1,6 @@
+import math
 import time
+
 import cv2
 import keyboard
 import mss
@@ -6,7 +8,6 @@ import numpy as np
 import pygetwindow as gw
 import win32api
 import win32con
-import math
 
 
 class Logger:
@@ -28,6 +29,7 @@ class AutoClicker:
         self.logger = logger
         self.running = False
         self.clicked_points = []
+        self.iteration_count = 0
 
     @staticmethod
     def hex_to_hsv(hex_color):
@@ -96,7 +98,7 @@ class AutoClicker:
                         mask = cv2.inRange(hsv, lower_bound, upper_bound)
                         contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-                        for contour in contours:
+                        for contour in reversed(contours):
                             if cv2.contourArea(contour) < 1:
                                 continue
 
@@ -109,15 +111,18 @@ class AutoClicker:
                             if not self.is_near_color(hsv, (cX - monitor["left"], cY - monitor["top"]), nearby_hsvs):
                                 continue
 
-                            if any(math.sqrt((cX - px) ** 2 + (cY - py) ** 2) < 20 for px, py in self.clicked_points):
+                            if any(math.sqrt((cX - px) ** 2 + (cY - py) ** 2) < 35 for px, py in self.clicked_points):
                                 continue
-
+                            cY += 5
                             self.click_at(cX, cY)
                             self.logger.log(f'Нажал: {cX} {cY}')
                             self.clicked_points.append((cX, cY))
 
-                    time.sleep(0.4)
-                    self.clicked_points.clear()
+                    time.sleep(0.1)
+                    self.iteration_count += 1
+                    if self.iteration_count >= 5:
+                        self.clicked_points.clear()
+                        self.iteration_count = 0
 
 
 if __name__ == "__main__":
