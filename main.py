@@ -1,4 +1,7 @@
 import math
+import os
+import random
+import sys
 import time
 
 import cv2
@@ -8,6 +11,16 @@ import numpy as np
 import pygetwindow as gw
 import win32api
 import win32con
+
+
+def resource_path(relative_path):
+    """ Получаем файлы изображения если приложение открыто через .exe """
+    try:
+        base_path = sys._MEIPASS
+        return str(os.path.join(base_path, relative_path))
+    except Exception:
+        return relative_path
+
 
 
 class Logger:
@@ -20,9 +33,17 @@ class Logger:
         else:
             print(data)
 
+    def input(self, text: str):
+        if self.prefix:
+            return input(f"{self.prefix} {text}")
+        else:
+            return input(text)
+
+
 
 class AutoClicker:
-    def __init__(self, window_title, target_colors_hex, nearby_colors_hex, logger):
+    def __init__(self, window_title, target_colors_hex, nearby_colors_hex, logger, percentages: float,
+                 is_continue: bool):
         self.window_title = window_title
         self.target_colors_hex = target_colors_hex
         self.nearby_colors_hex = nearby_colors_hex
@@ -30,6 +51,16 @@ class AutoClicker:
         self.running = False
         self.clicked_points = []
         self.iteration_count = 0
+
+        self.percentage_click = percentages
+        self.is_continue = is_continue
+
+        self.target_hsvs = [self.hex_to_hsv(color) for color in self.target_colors_hex]
+        self.nearby_hsvs = [self.hex_to_hsv(color) for color in self.nearby_colors_hex]
+
+        self.templates_plays = [
+            cv2.cvtColor(cv2.imread(img, cv2.IMREAD_UNCHANGED), cv2.COLOR_BGRA2GRAY) for img in CLICK_IMAGES
+        ]  # картинки по которым нужно кликать
 
     @staticmethod
     def hex_to_hsv(hex_color):
@@ -64,6 +95,22 @@ class AutoClicker:
                             return True
         return False
 
+    def find_and_click_image(self, template_gray, screen, monitor):
+
+        screen_gray = cv2.cvtColor(screen, cv2.COLOR_BGRA2GRAY)
+
+        result = cv2.matchTemplate(screen_gray, template_gray, cv2.TM_CCOEFF_NORMED)
+        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+
+        if max_val >= 0.6:
+            template_height, template_width = template_gray.shape
+            center_x = max_loc[0] + template_width // 2 + monitor["left"]
+            center_y = max_loc[1] + template_height // 2 + monitor["top"]
+            self.click_at(center_x, center_y)
+            return True
+
+        return False
+
     def click_color_areas(self):
         windows = gw.getWindowsWithTitle(self.window_title)
         if not windows:
@@ -73,8 +120,6 @@ class AutoClicker:
 
         window = windows[0]
         window.activate()
-        target_hsvs = [self.hex_to_hsv(color) for color in self.target_colors_hex]
-        nearby_hsvs = [self.hex_to_hsv(color) for color in self.nearby_colors_hex]
 
         with mss.mss() as sct:
             grave_key_code = 41
@@ -92,14 +137,17 @@ class AutoClicker:
                     img_bgr = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
                     hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
 
-                    for target_hsv in target_hsvs:
+                    for target_hsv in self.target_hsvs:
                         lower_bound = np.array([max(0, target_hsv[0] - 1), 30, 30])
                         upper_bound = np.array([min(179, target_hsv[0] + 1), 255, 255])
                         mask = cv2.inRange(hsv, lower_bound, upper_bound)
                         contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
                         for contour in reversed(contours):
-                            if cv2.contourArea(contour) < 1:
+                            if random.random() >= self.percentage_click:
+                                continue
+
+                            if cv2.contourArea(contour) < 8:
                                 continue
 
                             M = cv2.moments(contour)
@@ -108,30 +156,67 @@ class AutoClicker:
                             cX = int(M["m10"] / M["m00"]) + monitor["left"]
                             cY = int(M["m01"] / M["m00"]) + monitor["top"]
 
-                            if not self.is_near_color(hsv, (cX - monitor["left"], cY - monitor["top"]), nearby_hsvs):
+                            if not self.is_near_color(hsv, (cX - monitor["left"], cY - monitor["top"]),
+                                                      self.nearby_hsvs):
                                 continue
 
                             if any(math.sqrt((cX - px) ** 2 + (cY - py) ** 2) < 35 for px, py in self.clicked_points):
                                 continue
-                            cY += 5
+                            cY += 7
                             self.click_at(cX, cY)
                             self.logger.log(f'Нажал: {cX} {cY}')
                             self.clicked_points.append((cX, cY))
 
-                    time.sleep(0.1)
+                    time.sleep(0.222)
                     self.iteration_count += 1
                     if self.iteration_count >= 5:
                         self.clicked_points.clear()
+                        if self.is_continue:
+                            for tp in self.templates_plays:
+                                self.find_and_click_image(tp, img, monitor)
                         self.iteration_count = 0
 
 
 if __name__ == "__main__":
     logger = Logger("[https://t.me/scriptblum]")
     logger.log("Вас приветствует бесплатный скрипт - автокликер для игры Blum")
+    CLICK_IMAGES = [resource_path("media\\lobby-play.png"), resource_path("media\\continue-play.png")]
+
+    PERCENTAGES = {
+        "1": 0.13,  # 100
+        "2": 0.17,  # 150
+        "3": 0.235,  # 175
+        "4": 1,
+    }
+
+    # запрос желаемого кол-ва очковё
+    answer = None
+    while answer is None:
+        points_key = logger.input(
+            "Укажите желаемое количество очков | 1 -> 90-110 | 2 -> 140-160 | 3 -> 170-180 | 4 -> MAX: ")
+        answer = PERCENTAGES.get(points_key, None)
+        if answer is None:
+            logger.log("Неверное значение")
+    percentages = answer
+
+    # запрос нажимать ли на 'Play'
+    answer = None
+    answs = {
+        "1": True,
+        "0": False
+    }
+    while answer is None:
+        points_key = logger.input("Бот продолжает игры автоматически? | 1 - да / 0 - нет: ")
+        answer = answs.get(points_key, None)
+        if answer is None:
+            logger.log("Неверное значение")
+    is_continue = answer
+
     logger.log('После запуска мини игры нажимайте клавишу "ё" (`) на клавиатуре')
     target_colors_hex = ["#c9e100", "#bae70e"]
     nearby_colors_hex = ["#abff61", "#87ff27"]
-    auto_clicker = AutoClicker("TelegramDesktop", target_colors_hex, nearby_colors_hex, logger)
+    auto_clicker = AutoClicker("TelegramDesktop", target_colors_hex, nearby_colors_hex, logger, percentages=percentages,
+                               is_continue=is_continue)
     try:
         auto_clicker.click_color_areas()
     except Exception as e:
