@@ -10,3 +10,8 @@
 <b>После запуска мини игры нажимайте клавишу "ё" на клавиатуре (вкл/выкл)</b>
 
 ![video](https://github.com/ndkwa/blum-autocliker/blob/main/src/gif-3.gif)
+
+
+### Для тех кто собирает из исходников 📚
+- Актуальная версия Python 🐍
+- Установка зависимостей через `pip install -r requirements.txt` 
