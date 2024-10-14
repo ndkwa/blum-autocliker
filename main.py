@@ -14,13 +14,12 @@ import win32con
 
 
 def resource_path(relative_path):
-    """ Получаем файлы изображения если приложение открыто через .exe """
+    """ Get the path to the image files if the application is opened via .exe """
     try:
         base_path = sys._MEIPASS
         return str(os.path.join(base_path, relative_path))
     except Exception:
         return relative_path
-
 
 
 class Logger:
@@ -40,10 +39,8 @@ class Logger:
             return input(text)
 
 
-
 class AutoClicker:
-    def __init__(self, window_title, target_colors_hex, nearby_colors_hex, logger, percentages: float,
-                 is_continue: bool):
+    def __init__(self, window_title, target_colors_hex, nearby_colors_hex, logger, percentages: float, is_continue: bool):
         self.window_title = window_title
         self.target_colors_hex = target_colors_hex
         self.nearby_colors_hex = nearby_colors_hex
@@ -60,7 +57,7 @@ class AutoClicker:
 
         self.templates_plays = [
             cv2.cvtColor(cv2.imread(img, cv2.IMREAD_UNCHANGED), cv2.COLOR_BGRA2GRAY) for img in CLICK_IMAGES
-        ]  # картинки по которым нужно кликать
+        ]  # images that need to be clicked on
 
     @staticmethod
     def hex_to_hsv(hex_color):
@@ -79,8 +76,8 @@ class AutoClicker:
 
     def toggle_script(self):
         self.running = not self.running
-        r_text = "вкл" if self.running else "выкл"
-        self.logger.log(f'Статус изменен: {r_text}')
+        r_text = "on" if self.running else "off"
+        self.logger.log(f'Status changed: {r_text}')
 
     def is_near_color(self, hsv_img, center, target_hsvs, radius=8):
         x, y = center
@@ -96,7 +93,6 @@ class AutoClicker:
         return False
 
     def find_and_click_image(self, template_gray, screen, monitor):
-
         screen_gray = cv2.cvtColor(screen, cv2.COLOR_BGRA2GRAY)
 
         result = cv2.matchTemplate(screen_gray, template_gray, cv2.TM_CCOEFF_NORMED)
@@ -115,7 +111,7 @@ class AutoClicker:
         windows = gw.getWindowsWithTitle(self.window_title)
         if not windows:
             self.logger.log(
-                f"Не найдено окна с заголовком: {self.window_title}. Откройте Веб-приложение Blum и откройте скрипт заново")
+                f"No window with title found: {self.window_title}. Open the Blum Web App and reopen the script")
             return
 
         window = windows[0]
@@ -164,7 +160,7 @@ class AutoClicker:
                                 continue
                             cY += 7
                             self.click_at(cX, cY)
-                            self.logger.log(f'Нажал: {cX} {cY}')
+                            self.logger.log(f'Clicked: {cX} {cY}')
                             self.clicked_points.append((cX, cY))
 
                     time.sleep(0.222)
@@ -178,8 +174,8 @@ class AutoClicker:
 
 
 if __name__ == "__main__":
-    logger = Logger("[https://t.me/scriptblum]")
-    logger.log("Вас приветствует бесплатный скрипт - автокликер для игры Blum")
+    logger = Logger("[...]")
+    logger.log("Welcome to the free autoclicker script for the game Blum")
     CLICK_IMAGES = [resource_path("media\\lobby-play.png"), resource_path("media\\continue-play.png")]
 
     PERCENTAGES = {
@@ -189,30 +185,30 @@ if __name__ == "__main__":
         "4": 1,
     }
 
-    # запрос желаемого кол-ва очковё
+    # Ask for the desired number of points
     answer = None
     while answer is None:
         points_key = logger.input(
-            "Укажите желаемое количество очков | 1 -> 90-110 | 2 -> 140-160 | 3 -> 170-180 | 4 -> MAX: ")
+            "Enter the desired number of points | 1 -> 90-110 | 2 -> 140-160 | 3 -> 170-180 | 4 -> MAX: ")
         answer = PERCENTAGES.get(points_key, None)
         if answer is None:
-            logger.log("Неверное значение")
+            logger.log("Invalid value")
     percentages = answer
 
-    # запрос нажимать ли на 'Play'
+    # Ask whether to click 'Play'
     answer = None
     answs = {
         "1": True,
         "0": False
     }
     while answer is None:
-        points_key = logger.input("Бот продолжает игры автоматически? | 1 - да / 0 - нет: ")
+        points_key = logger.input("Does the bot continue games automatically? | 1 - yes / 0 - no: ")
         answer = answs.get(points_key, None)
         if answer is None:
-            logger.log("Неверное значение")
+            logger.log("Invalid value")
     is_continue = answer
 
-    logger.log('После запуска мини игры нажимайте клавишу "ё" (`) на клавиатуре')
+    logger.log('To start the mini-game, press the (`) key on your keyboard and click on Blum Window.')
     target_colors_hex = ["#c9e100", "#bae70e"]
     nearby_colors_hex = ["#abff61", "#87ff27"]
     auto_clicker = AutoClicker("TelegramDesktop", target_colors_hex, nearby_colors_hex, logger, percentages=percentages,
@@ -220,8 +216,8 @@ if __name__ == "__main__":
     try:
         auto_clicker.click_color_areas()
     except Exception as e:
-        logger.log(f"Произошла ошибка: {e}")
+        logger.log(f"An error has occurred: {e}")
     for i in reversed(range(5)):
         i += 1
-        print(f"Скрипт завершит работу через {i}")
+        print(f"The script will exit in {i}")
         time.sleep(1)
